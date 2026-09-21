@@ -1,0 +1,311 @@
+---
+title: "Powerlifting Technical Report"
+author: "Jackie Wiechmann & Julia Beyer"
+format: html
+embed-resources: true
+bibliography: refsproj.bib
+---
+
+
+```{r}
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+library(tidyverse)
+library(utils)
+library(ggplot2)
+library(dplyr)
+library(moderndive)
+library(knitr)
+library(infer)
+```
+
+```{r}
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+powerlifting_data <- read.csv("IPF Lifts - ipf_lifts.csv")
+```
+
+```{r}
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+filtered_powerlifting <- powerlifting_data |>
+  select(sex, bodyweight_kg, best3deadlift_kg, age_class) |>
+  filter(sex == "F") |>
+  drop_na(best3deadlift_kg, age_class)
+```
+
+# Introduction
+Historically, female athletes and the female body have been understudied in scientific literature regarding athletic performance. The female musculature and hormonal composition differs from the male, and in turn many findings done on elite athletes are not always as applicable or successful for female athletes. Sports medicine literature has also been historically biased towards studies done on male athletes, most of which focus solely on findings in male athletes or include some research on both sexes. However, not many studies in Sports Medicine focus only on female athletes. [@paul2023inequalities] Moreover, studies have found collegiate level female athletes more likely to sustain acute injuries than their male counterparts in sports such as basketball and soccer, due to understudied differences in female anatomy and physiology.[@agel2005anterior]
+
+Since the boom in participation and investment in female athletics in the 1970s following the Title IX legislature, slow progress has been made in research, but there is still discrepancy in literature and applicable knowledge regarding female sports performance. Most research done on female physiology has been focused on menstrual cycle, pregnancy, or reproductive disease, as opposed to actual sports performance.[@gendergap] Additionally, studies that have been conducted on female test subjects often end with conclusions pointing to the still existing lack of a body of research on female athletes to strongly support any conclusions on performance. With recent attention drawn to the higher levels of acute injuries in female athletes, resistance training, such as weight lifting, has become more popular as a way to reduce injury and other issues faced by female athletes such as the female athlete triad.^[ The female athelete triad is a set of symptoms that occur in female atheletes with chronic low energy-level availability: menstrual disorders, disordered eating, and bone density loss/osteoporosis.] 
+	
+While studies have shown it has been beneficial for AFAB (assigned female at birth) people to lift weights in order to reduce injury, there is still a lack of research on actual weight lifting performance and female physiology. It is generally understood that there are key differences between male and female muscle and weight anatomy, but still simply not enough literature on female weight lifting performance, much less on professional female athletes. Our project investigates how body weight in kilograms affects recorded max deadlift in kilograms in female professional weight lifters. We used data published in the International Powerlifting dataset published by Tom Mock on the data sharing website Github. This is data collected from the Open Powerlifting website, which contains international powerlifting statistics. This dataset focuses on observations from International Powerlifting Federation events, and included in this dataset are best out of three deadlift maxes (kg) for female powerlifters as well as their body weights (kg). We will analyze the strength of the relationship between these two variables using a regression model analysis and a permutation test. 
+
+# Data
+
+Our data set had originally 16 variables with observations relating to the data from the international power lifting competition. We decided to filter the data to focus on the variable relating to our hypothesis; the average weight of participants best 3 deadlifts in kilograms and particpants body weight in kilograms. We also decided to keep the particpants age, and included some data vizualizations including this variable in our appendix in order to propose possible further analysis of the female deadlift data. We filtered the particpants to be only observations of female powerlifters, as we were interested in the potential relationship between weight and best dead lift in female athletes. The age classes female participants could compete in were from 5-99 years old. 
+
+
+```{r}
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+avgs <- filtered_powerlifting |>
+  group_by(age_class)|>
+  summarise(avg_deadlift = mean(best3deadlift_kg), avg_weight = mean(bodyweight_kg)) 
+```
+
+
+```{r}
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+sd_table <- filtered_powerlifting |>
+  group_by(age_class)|>
+  summarise(sd_dead = sd(best3deadlift_kg), sd_weight = sd(bodyweight_kg))
+```
+
+#### Summary Statistics 
+In @tbl-summary we calculate summary statistics for each age group including the mean participant weight and mean dead lift weight in kgs, as well as the standard deviation of the participant weights and dead lifts. 
+
+```{r}
+#| label: tbl-summary
+#| tbl-cap: Average and standard deviation of body weight and dead lift by age class.
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+Summary_Stats <- tibble(
+  Age = c("5-12",  "13-15", "16-17", "18-19", "20-23", "24-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80-999"),
+  MeanWeight = c("74.2", "55.75177", "63.36287", "64.97732", "NA", "NA", "NA","65.47345", "64.19191", "66.35007", "63.14856", "65.34855", "58.64791", "57.00139", "64.87417", "95.93500"),
+  MeanDeadlift = c("162.50000", "126.43952", "139.59056", "149.72319", "158.98085", "175.19454", "168.15946", "159.96463", "150.96272", "145.95823", "140.21123", "128.11034", "113.70149", "106.45833", "93.33333", "106.25000"),
+  SDWeight = c("NA", "12.842377", "18.232125", "18.902435", "NA", "NA", "NA", "16.625727", "15.214701", "18.152223", "15.510674", "14.170112", "10.756898", "12.341829", "15.576007", "2.241528"),
+  SDDeadlift = c("NA","27.416658", "27.172310", "29.111523", "30.950863", "30.104106", "30.251736", "29.568185", "26.177574", "25.465993", "25.075843", "20.432772", "19.467739", "19.455948", "14.195603", "8.838835")
+)
+
+kable(Summary_Stats)
+```
+
+ @fig-barplot below displays the distribution of of the female participants dead lifts over each age class. 
+
+```{r}
+#| label: fig-barplot
+#| fig-cap: Distribution of female deadlifts by age category 
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+ggplot(
+  data = avgs,
+  mapping = aes(
+    x = age_class,
+    y = avg_deadlift
+  )
+) +
+  geom_col() +
+  labs(title = "Body Weight and Deadlift Visualization", 
+       x = "Age Category",  
+       y = "Deadlift Kgs",)
+```
+Given the distribution in @fig-barplot, there is not a huge degree of variability in the dead lift weights. However, as may be expected, the peak is centered around the 24-39 age categories, which is in line with when typical female athletes peak in their strength and performance. This distribution can provide a baseline understanding of how the range of female dead lifts weights are distributed in the data set. However, we are more interested in the potential relationships between female participants' weight and their dead lift. 
+
+ @fig-deadliftdist below visualizes the distribution of dead lift weights in kilograms alongside female participant body weights observed in kilograms. 
+
+```{r}
+#| label: fig-deadliftdist
+#| fig-cap: Distribution of the observed 8,624 female deadlifts. 
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+ggplot(
+  data = filtered_powerlifting,
+  mapping = aes(
+    x = bodyweight_kg,
+    y = best3deadlift_kg,
+  )
+) +
+  geom_point(color="magenta") +
+  labs(title = "Female Body Weight and Deadlift", 
+       x = "Bodyweight Kilograms",  
+       y = "Best Deadlift Kilograms",
+       size = 3)
+```
+
+@Fig-deadliftdist is a visualization of the relationship between female participant body weight and their best dead lift. There appears to be a higher concentration of observations of heavier dead lifts as body weight increases. Hypothesis testing will need to occur to determine if a relationship between these variables exists and is significant. 
+
+# Results 
+In order to test the relationship between participant's body weight and dead lift, we constructed a null and alternative hypothesis and used both a simple linear regression model and a permutation test in order to test our hypothesis. 
+
+**Null Hypothesis:** The slope of the regression line relating the average female body weight of participants and the female participant's best dead lift weight would be equal to 0, indicating that there is no relationship between the two variables.
+$$
+H_{0}=\beta_{bodyweight} = 0
+$$
+**Alternative Hypothesis:** The slope of the regression line relating the average female body weight of participants and the female participant's best dead lift weight would not be equal to 0, indicating that there is are relationship between the two variables.
+$$
+H_{a}=\beta_{bodyweight} \ne 0
+$$
+
+
+To quantify the relationship between a females body weight and best dead lift weight, we fit a simple linear regression model as well as completed a permutation test. In this model, the outcome variable was a female participant's best dead lift weight, and the explanatory variable was the female participant's body weight. The predictions of this model are visualized in @fig-regressionmodel and the model’s coefficients are described in @tbl-reg.  
+
+#### Regression model:
+
+We used R to calculate a regression table, @tbl-reg, from which we concluded that our observed slope was 0.934. This is a positive slope, indicating a possible positive linear relationship between our observed female body weights and dead lift weights. In this regression table we found a p-value of 0, indicating that the likelihood of the null hypothesis being true is extremely unlikely. 
+
+```{r}
+#| label: tbl-reg
+#| tbl-cap: Regression Table
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+powerlifting_regression_table <- lm(best3deadlift_kg ~ bodyweight_kg, data = filtered_powerlifting) 
+regression_table <- get_regression_table(powerlifting_regression_table)
+kable(regression_table)
+```
+
+@fig-regressionmodel shows our fitted regression line with the observed slope of 0.934 onto the scatter plot depicting the relationship between female participant's body weight and best dead lift weight.
+
+```{r}
+#| label: fig-regressionmodel
+#| fig-cap: Regression Model Visualization
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+ggplot(filtered_powerlifting, aes(x = bodyweight_kg, y = best3deadlift_kg)) +
+geom_point() +
+geom_smooth(method = "lm", se=FALSE) +
+labs(title = "Relationship Between Body Weight and Best Deadlift",
+x = "Body Weight",
+y = "Best Deadlift")
+```
+
+We then performed a permutation test in which we constructed a null distribution, calculated the p-value, and visualized it on the null hypothesis distribution. 
+
+#### Permutation Test: 
+
+In our permutation test, we constructed a null distribution using permuted values under the assumption that the null hypothesis is true. We calculated the p-value, and set our alpha level to 0.05, and constructed a 95% confidence interval. 
+
+```{r}
+#| label: fig-permute
+#| fig-cap: Null Distribution based on permutation
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+set.seed(123)
+
+permutation_dist <- powerlifting_data |>
+  specify(formula = best3deadlift_kg ~ bodyweight_kg) |>
+  hypothesise(null = "independence") |>
+  generate(reps = 1000, type = "permute") |>
+  calculate(stat = "slope")
+
+visualise(permutation_dist)
+```
+
+```{r}
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+permutation_dist |>
+  get_p_value(obs_stat = 0.934, direction = "both")
+```
+
+```{r}
+#| label: fig-shadepermute
+#| fig-cap: Permuation visualization with shaded P value
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+visualise(permutation_dist) +
+  shade_p_value(obs_stat = 0.934, direction = "both")
+```
+
+Ultimately, we reject the null hypothesis. As seen in @fig-regressionmodel, there is a positive correlation between a females body weight and the amount she can dead lift, meaning the true difference between the average female body weight and  the average female best dead lift is not 0. Through our permutation test, visualized in @fig-shadepermute we calculated a P-Value of 0, proving a correlation between body weight and dead lift weight. Therefore, if we were to hypothetically compute a 95% confidence interval, this P value of 0 is less than the alpha value of 0.05, allowing us to be confident in rejecting the null hypothesis. 
+
+# Discussion and Conclusion
+
+
+The purpose of our investigation into the International Powerlifting Data set was to examine the potential relationship between body weight and dead lift weight in female powerlifting athletes. Through exploratory visual data analysis, we observed some possible positive correlation between body weight in kilograms and best of 3 dead lifts in females. In order to further determine the strength and statistical significance of this relationship we performed a regression analysis and a permutation test. We created a regression model to observe the linearity of the slope of a regression line of the relationship between our explanatory and response variables. Next, we ran a permutation test to determine the probability that we can reject our null hypothesis of no relationship between the variables. 
+
+Our regression model indicated a positive slope of the regression line, with a p-value of 0, indicating a extremely low chance that the null hypothesis is true. Based on our further permutation testing, and visualizing a null distribution alongside our p-value, we were able to confidently rejecting our null hypothesis. We concluded that there is an existing relationship between female participants in the international powerlifting competition's body weight and their best of 3 dead lift weight. 
+
+However, it is important to note that this data cannot provide a population wide conclusion for performance of all female athletes, as the observed population was females competing at a high level powerlifting competition. Our conclusions cannot be directly translated to conclusions about female athletes of all levels or disciplines. Moreover, we did not perform hypothesis testing relating the age of female participants to best dead lift or body weight. Introducing this variable interaction to our testing could yield other interesting results about how strong the relationship between body weight and dead lift may be from age group to age group. 
+
+
+
+# Appendix A Further Questions
+For possible further research and analysis, we could look more closely at the relationship between age, deadlift weight, and bodyweight. We visualized this relationship in @fig-trivarboxplot. Further research and hypothesis testing could be done to examine how a female athelete's max deadlift may trend downward after peaking at a certain age. It may be useful to include not only a female participants weight, but her age class as well in analysis of max deadlift data. If we were to try to find when a female athelete's strength peaks and at what weight, it would be important to take the age data into account. 
+
+```{r}
+#| label: fig-trivarboxplot
+#| fig-cap: Relationship between female age, weight, and dead lift. 
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-height: 7
+ggplot(
+  data = filtered_powerlifting,
+  mapping = aes(
+    x = bodyweight_kg,
+    y = best3deadlift_kg, 
+    fill = age_class
+  )
+) +
+  geom_boxplot() +
+  labs(title = "Body Weight and Deadlift Visualization by Age Class",
+       x = "Body Weight (kg)",
+       y = "Best Deadlift (kg)")
+```
+In @fig-trivarboxplot, we added in the the variable of female participants age. Each colored box represents a different age class, and we can observe that as women get older past their peak from 24-34, they lose weight, correlating to a lower max dead lift weight. It would require further analysis to quantify or determine the strength of this potential relationship.  
+
+# Appendix B
+Regression Diagnostics: 
+```{r}
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+predictions <- get_regression_points(powerlifting_regression_table)
+```
+
+```{r}
+#| label: fig-residualscat
+#| fig-cap: Scatterplot showing residual error
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+ggplot(predictions, aes(x=best3deadlift_kg_hat, y=residual)) +
+  geom_point() +
+  geom_hline(yintercept = 0, color="red")
+```
+
+```{r}
+#| label: fig-residualhist
+#| fig-cap: Histogram showing residual error
+#| eval: true
+#| echo: false
+#| message: false
+#| warning: false
+ggplot(predictions, aes(x=residual)) +
+  geom_histogram()
+```
+
+The fitted vs. residuals plot presented in @fig-residualscat shows quite an equal variance as the red line is in the center of all points. In other words, the equal variance assumption is not violated, allowing us to feel confident in our permutation test. The histogram of the residual errors shown in @fig-residualhist shows a very normal distribution surrounding zero. This tells us the assumption of normally distributed residuals is reasonable for our linear regression model. We are confident that drawing inferences about our model’s coefficients based on our permutation test is a reasonable approach to hypothesis testing.
+
+# Bibliography
